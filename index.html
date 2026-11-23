@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Referências – ATENA</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --txt:#1c2330; --mut:#5d6778; --bd:#d9dde5; --acc:#1f5fbf; --hl:#ffe58a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  header { background:#16233b; color:#fff; padding:22px 20px; }
+  header h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:#b9c4d8; font-size:14px; }
+  main { max-width:960px; margin:0 auto; padding:16px 16px 48px; }
+  .filtros { position:sticky; top:0; z-index:5; background:var(--bg); padding:12px 0; display:grid; gap:10px;
+             grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); border-bottom:1px solid var(--bd); }
+  .filtros .busca { grid-column:1 / -1; }
+  label { display:block; font-size:12px; color:var(--mut); margin-bottom:3px; }
+  input, select, button { font:inherit; padding:8px 10px; border:1px solid var(--bd); border-radius:6px; background:#fff; color:inherit; width:100%; }
+  button { cursor:pointer; width:auto; }
+  button:hover { border-color:var(--acc); color:var(--acc); }
+  .barra { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:12px 0; color:var(--mut); font-size:14px; flex-wrap:wrap; }
+  .barra .acoes { display:flex; gap:8px; }
+  ol { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  li { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:12px 14px; }
+  li h2 { font-size:16px; margin:0 0 2px; }
+  .autor { color:var(--mut); font-size:14px; }
+  .tags { display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; }
+  .tag { font-size:12px; padding:1px 8px; border-radius:99px; background:#e8eefb; color:#244a8f; }
+  .tag.ano { background:#eef0f3; color:#444; }
+  .ref { font-size:13px; color:#3a4456; margin:0; word-break:break-word; }
+  .ref a { color:var(--acc); }
+  .links { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+  .links a, .links button { font-size:13px; padding:4px 10px; border:1px solid var(--bd); border-radius:6px; text-decoration:none; color:var(--acc); background:#fff; width:auto; }
+  .links a:hover, .links button:hover { border-color:var(--acc); }
+  mark { background:var(--hl); padding:0 1px; border-radius:2px; }
+  .vazio { text-align:center; color:var(--mut); padding:40px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Referências do trabalho</h1>
+  <p>ATENA – gêmeo digital da bancada pneumática</p>
+</header>
+<main>
+  <section class="filtros" aria-label="Filtros">
+    <div class="busca">
+      <label for="q">Buscar</label>
+      <input id="q" type="search" placeholder="Nome da obra, autor, editora, DOI... (vários termos = todos precisam aparecer)" autofocus>
+    </div>
+    <div>
+      <label for="campo">Buscar em</label>
+      <select id="campo">
+        <option value="tudo">Tudo</option>
+        <option value="t">Título da obra</option>
+        <option value="a">Autor</option>
+      </select>
+    </div>
+    <div>
+      <label for="tipo">Tipo</label>
+      <select id="tipo"><option value="">Todos</option></select>
+    </div>
+    <div>
+      <label for="de">Ano de</label>
+      <select id="de"><option value="">—</option></select>
+    </div>
+    <div>
+      <label for="ate">Ano até</label>
+      <select id="ate"><option value="">—</option></select>
+    </div>
+    <div>
+      <label for="ordem">Ordenar por</label>
+      <select id="ordem">
+        <option value="autor">Autor (A–Z)</option>
+        <option value="titulo">Título (A–Z)</option>
+        <option value="ano-desc">Ano (mais recente)</option>
+        <option value="ano-asc">Ano (mais antigo)</option>
+      </select>
+    </div>
+  </section>
+
+  <div class="barra">
+    <span id="contagem"></span>
+    <span class="acoes">
+      <button id="copiar-todas" type="button">Copiar lista filtrada</button>
+      <button id="limpar" type="button">Limpar filtros</button>
+    </span>
+  </div>
+
+  <ol id="lista"></ol>
+  <p id="vazio" class="vazio" hidden>Nenhuma referência encontrada com esses filtros.</p>
+</main>
+
+<script src="referencias.js"></script>
+<script>
+(function () {
+  var dados = window.REFERENCIAS.map(function (r, i) {
+    r.i = i;
+    r.nt = norm(r.t); r.na = norm(r.a); r.nref = norm(r.ref);
+    return r;
+  });
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = { q:$("q"), campo:$("campo"), tipo:$("tipo"), de:$("de"), ate:$("ate"), ordem:$("ordem"),
+             lista:$("lista"), vazio:$("vazio"), contagem:$("contagem") };
+
+  // remove acentos e caixa para comparar
+  function norm(s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+
+  // preenche selects de tipo e ano
+  var tipos = Array.from(new Set(dados.map(function (r) { return r.k; }))).sort();
+  tipos.forEach(function (k) { el.tipo.add(new Option(k + " (" + dados.filter(function (r) { return r.k === k; }).length + ")", k)); });
+  var anos = Array.from(new Set(dados.filter(function (r) { return r.y; }).map(function (r) { return r.y; }))).sort();
+  anos.forEach(function (y) { el.de.add(new Option(y, y)); el.ate.add(new Option(y, y)); });
+
+  // quebra um texto em partes, marcando os termos buscados
+  function addTexto(pai, texto, termos) {
+    if (!termos.length) { pai.appendChild(document.createTextNode(texto)); return; }
+    var nt = norm(texto), marcas = [];
+    termos.forEach(function (t) {
+      var p = 0, j;
+      while ((j = nt.indexOf(t, p)) !== -1) { marcas.push([j, j + t.length]); p = j + t.length; }
+    });
+    marcas.sort(function (x, y) { return x[0] - y[0]; });
+    var pos = 0;
+    marcas.forEach(function (m) {
+      if (m[1] <= pos) return;
+      var ini = Math.max(m[0], pos);
+      if (ini > pos) pai.appendChild(document.createTextNode(texto.slice(pos, ini)));
+      var mk = document.createElement("mark"); mk.textContent = texto.slice(ini, m[1]); pai.appendChild(mk);
+      pos = m[1];
+    });
+    if (pos < texto.length) pai.appendChild(document.createTextNode(texto.slice(pos)));
+  }
+
+  // texto com URLs/DOIs clicáveis
+  function addRef(pai, texto, termos) {
+    var re = /(https?:\/\/[^\s]+?)(?=\.?(?:\s|$))|(?:DOI: )(10\.\d{4,9}\/[^\s]+?)(?=\.?(?:\s|$))/g;
+    var pos = 0, m;
+    while ((m = re.exec(texto))) {
+      var ini = m.index, url, rotulo;
+      if (m[1]) { url = m[1]; rotulo = m[1]; }
+      else { url = "https://doi.org/" + m[2]; rotulo = m[2]; ini = m.index + 5; }
+      addTexto(pai, texto.slice(pos, ini), termos);
+      var a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      addTexto(a, rotulo, termos); pai.appendChild(a);
+      pos = ini + rotulo.length;
+    }
+    addTexto(pai, texto.slice(pos), termos);
+  }
+
+  function linkDe(r) {
+    var m = r.ref.match(/https?:\/\/[^\s]+?(?=\.?(?:\s|$))/);
+    if (m) return m[0];
+    var d = r.ref.match(/DOI: (10\.\d{4,9}\/[^\s]+?)(?=\.?(?:\s|$))/);
+    return d ? "https://doi.org/" + d[1] : null;
+  }
+
+  function filtrar() {
+    var termos = norm(el.q.value).split(/\s+/).filter(Boolean);
+    var campo = el.campo.value, tipo = el.tipo.value;
+    var de = el.de.value ? +el.de.value : null, ate = el.ate.value ? +el.ate.value : null;
+
+    var res = dados.filter(function (r) {
+      if (tipo && r.k !== tipo) return false;
+      if (de !== null && (!r.y || r.y < de)) return false;
+      if (ate !== null && (!r.y || r.y > ate)) return false;
+      var alvo = campo === "t" ? r.nt : campo === "a" ? r.na : r.nref;
+      return termos.every(function (t) { return alvo.indexOf(t) !== -1; });
+    });
+
+    var o = el.ordem.value;
+    var cmp = {
+      "autor":    function (x, y) { return x.i - y.i; }, // ordem original = alfabética por autor (ABNT)
+      "titulo":   function (x, y) { return x.nt.localeCompare(y.nt, "pt"); },
+      "ano-desc": function (x, y) { return (y.y || 0) - (x.y || 0) || x.i - y.i; },
+      "ano-asc":  function (x, y) { return (x.y || 9999) - (y.y || 9999) || x.i - y.i; }
+    }[o];
+    res.sort(cmp);
+    desenhar(res, termos, campo);
+    return res;
+  }
+
+  var atuais = [];
+  function desenhar(res, termos, campo) {
+    atuais = res;
+    el.lista.textContent = "";
+    var tt = campo === "a" ? [] : termos;      // destaque no título
+    var ta = campo === "t" ? [] : termos;      // destaque no autor / referência
+    res.forEach(function (r) {
+      var li = document.createElement("li");
+      var h = document.createElement("h2"); addTexto(h, r.t, tt); li.appendChild(h);
+      var au = document.createElement("div"); au.className = "autor"; addTexto(au, r.a, ta); li.appendChild(au);
+
+      var tags = document.createElement("div"); tags.className = "tags";
+      var t1 = document.createElement("span"); t1.className = "tag"; t1.textContent = r.k; tags.appendChild(t1);
+      var t2 = document.createElement("span"); t2.className = "tag ano"; t2.textContent = r.y || "s.d."; tags.appendChild(t2);
+      li.appendChild(tags);
+
+      var p = document.createElement("p"); p.className = "ref"; addRef(p, r.ref, ta.length || campo === "tudo" ? termos : []); li.appendChild(p);
+
+      var links = document.createElement("div"); links.className = "links";
+      var href = linkDe(r);
+      if (href) { var a = document.createElement("a"); a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "Abrir link"; links.appendChild(a); }
+      var b = document.createElement("button"); b.type = "button"; b.textContent = "Copiar referência";
+      b.addEventListener("click", function () { copiar(r.ref, b); });
+      links.appendChild(b);
+      li.appendChild(links);
+      el.lista.appendChild(li);
+    });
+    el.vazio.hidden = res.length > 0;
+    el.contagem.textContent = res.length + " de " + dados.length + " referências";
+  }
+
+  function copiar(texto, botao) {
+    var original = botao.textContent;
+    function ok() { botao.textContent = "Copiado!"; setTimeout(function () { botao.textContent = original; }, 1200); }
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(texto).then(ok); return; }
+    var ta = document.createElement("textarea"); ta.value = texto; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); ok(); } catch (e) {} document.body.removeChild(ta);
+  }
+
+  ["input", "change"].forEach(function (ev) {
+    [el.q, el.campo, el.tipo, el.de, el.ate, el.ordem].forEach(function (c) { c.addEventListener(ev, filtrar); });
+  });
+  $("limpar").addEventListener("click", function () {
+    el.q.value = ""; el.campo.value = "tudo"; el.tipo.value = ""; el.de.value = ""; el.ate.value = ""; el.ordem.value = "autor"; filtrar(); el.q.focus();
+  });
+  $("copiar-todas").addEventListener("click", function (e) {
+    copiar(atuais.map(function (r) { return r.ref; }).join("\n\n"), e.currentTarget);
+  });
+
+  filtrar();
+})();
+</script>
+</body>
+</html>
